@@ -1,3 +1,5 @@
+import java.io.{BufferedWriter, File, FileWriter}
+
 import Util.Config
 import com.typesafe.scalalogging.LazyLogging
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
@@ -15,31 +17,90 @@ object Scraper extends App with Config with LazyLogging {
   logger.info("App started")
 
   val browser = JsoupBrowser()
-  val doc = browser.get(config.getString("url.base"))
 
+  val pages = config.getInt("pages.total")
 
-  // Go to a news website and extract the hyperlink inside the h1 element if it
-  // exists. Follow that link and print both the article title and its short
-  // description (inside ".lead")
+  val url = config.getString("url.base")
 
-  val headlines = browser.get("http://observador.pt") >?> elementList("h1 a")
+  var houses: Seq[House] = Seq[House]()
 
-  headlines match {
-    case Some(items: List[Element]) => {
-      items.foreach(hl => {
-        val headlineDesc = browser.get(hl.attr("href")) >?> text(".lead")
-        headlineDesc match {
-          case None => //
-          case _ => {
-            println("== " + hl.text + " ==\n" + headlineDesc)
+  for(i <- 1 to pages){
+    logger.info(s"Crawling page #${i}")
+
+    val pageUrl = url.replace("{page}", i.toString)
+
+    val items = browser.get(pageUrl) >?> elementList("article.photo-card")
+
+    items match {
+      case Some(items: List[Element]) => {
+        items.foreach(item => {
+          val house = House()
+
+          val address = item >?> element("[itemprop=address]")
+
+          address match {
+            case None => //
+            case Some(addressElm) => {
+              addressElm >?> element("[itemprop=streetAddress]") match {
+                case None => //
+                case Some(streetElm) => {
+                  house.street = streetElm.text
+                }
+              }
+              addressElm >?> element("[itemprop=postalCode]") match {
+                case None => //
+                case Some(postalElm) => {
+                  house.postalCode = postalElm.text
+                }
+              }
+            }
           }
-        }
 
-      })
+          val geo = item >?> element("[itemprop=geo]")
 
+          geo match {
+            case None => //
+            case Some(geoElm) => {
+              geoElm >?> element("[itemprop=latitude]") match {
+                case None => //
+                case Some(latitudeElm) => {
+                  house.lat = latitudeElm.attr("content")
+                }
+              }
+              geoElm >?> element("[itemprop=longitude]") match {
+                case None => //
+                case Some(longElm) => {
+                  house.lng = longElm.attr("content")
+                }
+              }
+            }
+          }
+
+          val price = item >?> element(".zsg-photo-card-price")
+
+          price match {
+            case None => //
+            case Some(priceElm) => {
+              house.price = priceElm.text.replace(",", "")
+            }
+          }
+
+
+          houses = houses :+ house
+        })
+
+      }
+      case None => // nothing
     }
-    case None => // nothing
   }
+
+  val file = new File(config.getString("output.path"))
+  val bw = new BufferedWriter(new FileWriter(file))
+  bw.write(House.getHeadlines + "\n")
+
+  houses.foreach(h => {bw.write(h + "\n")} )
+
+  bw.close()
 
   logger.info("App finished")
 }
