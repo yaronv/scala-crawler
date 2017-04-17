@@ -3,11 +3,9 @@ import java.io.{BufferedWriter, File, FileWriter}
 import Util.Config
 import com.typesafe.scalalogging.LazyLogging
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
-import net.ruippeixotog.scalascraper.dsl.DSL._
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
-import net.ruippeixotog.scalascraper.dsl.DSL.Parse._
+import net.ruippeixotog.scalascraper.dsl.DSL._
 import net.ruippeixotog.scalascraper.model.Element
-import net.ruippeixotog.scalascraper.scraper.ContentExtractors
 
 /**
   * Created by yaron.vazana on 3/29/17.
@@ -95,6 +93,13 @@ object Scraper extends App with Config with LazyLogging {
   }
 
   val file = new File(config.getString("output.path"))
+  if(!file.exists()) {
+    new File(file.getParent()).mkdirs()
+    file.createNewFile()
+  }
+  else {
+    file.delete()
+  }
   val bw = new BufferedWriter(new FileWriter(file))
   bw.write(House.getHeadlines + "\n")
 
